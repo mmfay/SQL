@@ -1,6 +1,3 @@
-    --(Required)
-    DECLARE @param_activity VARCHAR(20) = 'C048857'
-    ;
 --------------------------------------------------------------------------------------------------------------
 /*
 Title: Shipping Status
@@ -236,7 +233,7 @@ SELECT
     ,V.CONFIG_ID
     ,V.INVENT_STYLE_ID
     ,V2.ITEM_NAME
-    ,(T.REMAININVENTPHYSICAL - CTE1.QTY - CTE2.QTY)     AS QTY
+    ,(T.REMAININVENTPHYSICAL - coalesce(CTE1.QTY,0) - coalesce(CTE2.QTY,0) )     AS QTY
     ,''                                                 AS SHIPMENTID
     ,T.SALESID
     ,''                                                 AS SHIPPINGDATETIME
@@ -282,7 +279,7 @@ WHERE
     AND T.ACTIVITYNUMBER                                = @param_activity
     AND T.SALESSTATUS                                   = 1
     AND T.QTYORDERED                                    > 0
-    AND (T.REMAININVENTPHYSICAL - CTE1.QTY - CTE2.QTY)  > 0
+    AND (T.REMAININVENTPHYSICAL - coalesce(CTE1.QTY,0) - coalesce(CTE2.QTY,0) )  > 0
 
 ), 
 /*
