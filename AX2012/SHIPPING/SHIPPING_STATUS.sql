@@ -1,3 +1,6 @@
+    --(Required)
+    DECLARE @param_activity VARCHAR(20) = 'C048857'
+    ;
 --------------------------------------------------------------------------------------------------------------
 /*
 Title: Shipping Status
@@ -69,57 +72,10 @@ WHERE
 ), 
 
 /*
-CTE_SUMMARY
-Description: Gathers All of the Items From CTE_SHIPPED & CTE_NOT_SHIPPED, UNION with SALES ORDER OPEN Lines.
+CTE_SHIPPED_OT
+Description: Adds Fields to CTE_SHIPPED. Main Addition is InventOrderTrans
 */
-CTE_SUMMARY AS (
-
-SELECT 
-
-    T.ITEMID
-    ,V.CONFIG_ID
-    ,V.INVENT_STYLE_ID
-    ,V2.ITEM_NAME
-    ,T.QTY
-    ,T.SHIPMENTID
-    ,T2.AXPSALESID
-    ,T2.SHIPPINGDATETIME
-    ,T2.AXPACTIVITYNUMBER
-    ,IIF(T.EXPEDITIONSTATUS = 8,'Staged',IIF(T.EXPEDITIONSTATUS = 20,'Canceled','Review'))      AS HANDLING_STATUS
-    ,'Not Shipped'                                                                              AS SHIPPING_STATUS
-    ,T.INVENTDIMID
-    ,T.DATAAREAID
-    ,T.[PARTITION]
-    ,V.INVENT_LOCATION_ID
-
-FROM MICROSOFTDYNAMICSAX.DBO.WMSORDERTRANS T 
-
-LEFT JOIN CTE_NOT_SHIPPED T2
-
-    ON T2.SHIPMENTID = T.SHIPMENTID
-    AND T2.DATAAREAID   = T.DATAAREAID
-    AND T2.[PARTITION]  = T.[PARTITION]  
-
-LEFT JOIN AXMANAGEMENT.DBO.REX_INVENT_DIM_V V 
-
-    ON V.INVENT_DIM_ID  = T.INVENTDIMID
-    AND V.DATA_AREA_ID  = T.DATAAREAID
-    AND V.[PARTITION]   = T.[PARTITION]
-
-LEFT JOIN AXMANAGEMENT.DBO.REX_INVENT_TABLE_V V2 
-
-    ON V2.ITEM_ID       = T.ITEMID
-    AND V2.DATA_AREA_ID = T.DATAAREAID
-    AND V2.[PARTITION]  = T.[PARTITION]
-
-WHERE 
-
-    1=1
-    AND T2.CURRENTACT = 'Yes'
-	AND T.EXPEDITIONSTATUS = 8
-        -- 8 (Filters outs Waiting Covered by kit req)
-
-UNION 
+CTE_SHIPPED_OT AS (
 
 SELECT 
 
@@ -135,6 +91,7 @@ SELECT
     ,IIF(T.EXPEDITIONSTATUS = 10, 'Complete','Review')      AS HANDLING_STATUS
     ,'Shipped'                                              AS SHIPPING_STATUS
     ,T.INVENTDIMID
+    ,T.INVENTTRANSID
     ,T.DATAAREAID
     ,T.[PARTITION]
     ,V.INVENT_LOCATION_ID
@@ -165,6 +122,112 @@ WHERE
     AND T2.CURRENTACT = 'Yes'
     AND T.EXPEDITIONSTATUS <> 20
 
+), 
+
+/*
+CTE_NOT_SHIPPED_OT
+Description: Adds Fields to CTE_NOT_SHIPPED. Main Addition is InventOrderTrans
+*/
+CTE_NOT_SHIPPED_OT AS (
+
+SELECT 
+
+    T.ITEMID
+    ,V.CONFIG_ID
+    ,V.INVENT_STYLE_ID
+    ,V2.ITEM_NAME
+    ,T.QTY
+    ,T.SHIPMENTID
+    ,T2.AXPSALESID
+    ,T2.SHIPPINGDATETIME
+    ,T2.AXPACTIVITYNUMBER
+    ,IIF(T.EXPEDITIONSTATUS = 8,'Staged',IIF(T.EXPEDITIONSTATUS = 20,'Canceled','Review'))      AS HANDLING_STATUS
+    ,'Not Shipped'                                                                              AS SHIPPING_STATUS
+    ,T.INVENTDIMID
+    ,T.INVENTTRANSID
+    ,T.DATAAREAID
+    ,T.[PARTITION]
+    ,V.INVENT_LOCATION_ID
+
+FROM MICROSOFTDYNAMICSAX.DBO.WMSORDERTRANS T 
+
+LEFT JOIN CTE_NOT_SHIPPED T2
+
+    ON T2.SHIPMENTID = T.SHIPMENTID
+    AND T2.DATAAREAID   = T.DATAAREAID
+    AND T2.[PARTITION]  = T.[PARTITION]  
+
+LEFT JOIN AXMANAGEMENT.DBO.REX_INVENT_DIM_V V 
+
+    ON V.INVENT_DIM_ID  = T.INVENTDIMID
+    AND V.DATA_AREA_ID  = T.DATAAREAID
+    AND V.[PARTITION]   = T.[PARTITION]
+
+LEFT JOIN AXMANAGEMENT.DBO.REX_INVENT_TABLE_V V2 
+
+    ON V2.ITEM_ID       = T.ITEMID
+    AND V2.DATA_AREA_ID = T.DATAAREAID
+    AND V2.[PARTITION]  = T.[PARTITION]
+
+WHERE 
+
+    1=1
+    AND T2.CURRENTACT = 'Yes'
+	AND T.EXPEDITIONSTATUS = 8
+        -- 8 (Filters outs Waiting Covered by kit req)
+    
+),
+
+/*
+CTE_SUMMARY
+Description: Gathers All of the Items From CTE_SHIPPED_OT & CTE_NOT_SHIPPED_OT, UNION with SALES ORDER OPEN Lines.
+*/
+CTE_SUMMARY AS (
+
+SELECT 
+
+    CTE1.ITEMID
+    ,CTE1.CONFIG_ID
+    ,CTE1.INVENT_STYLE_ID
+    ,CTE1.ITEM_NAME
+    ,CTE1.QTY
+    ,CTE1.SHIPMENTID
+    ,CTE1.AXPSALESID
+    ,CTE1.SHIPPINGDATETIME
+    ,CTE1.AXPACTIVITYNUMBER
+    ,CTE1.HANDLING_STATUS
+    ,CTE1.SHIPPING_STATUS                                                                            
+    ,CTE1.INVENTDIMID
+    ,CTE1.INVENTTRANSID
+    ,CTE1.DATAAREAID
+    ,CTE1.[PARTITION]
+    ,CTE1.INVENT_LOCATION_ID
+
+FROM CTE_NOT_SHIPPED_OT CTE1
+
+UNION 
+
+SELECT 
+
+    CTE1.ITEMID
+    ,CTE1.CONFIG_ID
+    ,CTE1.INVENT_STYLE_ID
+    ,CTE1.ITEM_NAME
+    ,CTE1.QTY
+    ,CTE1.SHIPMENTID
+    ,CTE1.AXPSALESID
+    ,CTE1.SHIPPINGDATETIME
+    ,CTE1.AXPACTIVITYNUMBER
+    ,CTE1.HANDLING_STATUS
+    ,CTE1.SHIPPING_STATUS                                                                            
+    ,CTE1.INVENTDIMID
+    ,CTE1.INVENTTRANSID
+    ,CTE1.DATAAREAID
+    ,CTE1.[PARTITION]
+    ,CTE1.INVENT_LOCATION_ID
+
+FROM CTE_SHIPPED_OT CTE1
+
 UNION 
 
 SELECT 
@@ -173,14 +236,15 @@ SELECT
     ,V.CONFIG_ID
     ,V.INVENT_STYLE_ID
     ,V2.ITEM_NAME
-    ,T.REMAININVENTPHYSICAL
-    ,'' AS SHIPMENTID
+    ,(T.REMAININVENTPHYSICAL - CTE1.QTY - CTE2.QTY)     AS QTY
+    ,''                                                 AS SHIPMENTID
     ,T.SALESID
-    ,'' AS SHIPPINGDATETIME
+    ,''                                                 AS SHIPPINGDATETIME
     ,T.ACTIVITYNUMBER
-    ,'' AS HANDLING_STATUS
-    ,'Not Shipped' AS SHIPPING_STATUS
+    ,''                                                 AS HANDLING_STATUS
+    ,'Not Shipped'                                      AS SHIPPING_STATUS
     ,T.INVENTDIMID
+    ,T.INVENTTRANSID
     ,T.DATAAREAID
     ,T.[PARTITION]
     ,V.INVENT_LOCATION_ID
@@ -199,14 +263,26 @@ LEFT JOIN AXMANAGEMENT.DBO.REX_INVENT_TABLE_V V2
     AND V2.DATA_AREA_ID             = T.DATAAREAID
     AND V2.[PARTITION]              = T.[PARTITION]
 
+LEFT JOIN CTE_NOT_SHIPPED_OT CTE1 
+
+    ON CTE1.INVENTTRANSID           = T.INVENTTRANSID
+    AND CTE1.DATAAREAID             = T.DATAAREAID
+    AND CTE1.[PARTITION]            = T.[PARTITION]
+
+LEFT JOIN CTE_SHIPPED_OT CTE2 
+
+    ON CTE2.INVENTTRANSID           = T.INVENTTRANSID
+    AND CTE2.DATAAREAID             = T.DATAAREAID
+    AND CTE2.PARTITION              = T.[PARTITION]
 
 WHERE 
 
     1=1 
-    AND T.DATAAREAID                    = 'CI'
-    AND T.ACTIVITYNUMBER                = @param_activity
-    AND T.SALESSTATUS                   = 1
-    AND T.QTYORDERED                    > 0
+    AND T.DATAAREAID                                    = 'CI'
+    AND T.ACTIVITYNUMBER                                = @param_activity
+    AND T.SALESSTATUS                                   = 1
+    AND T.QTYORDERED                                    > 0
+    AND (T.REMAININVENTPHYSICAL - CTE1.QTY - CTE2.QTY)  > 0
 
 ), 
 /*
@@ -279,27 +355,27 @@ FROM MICROSOFTDYNAMICSAX.DBO.REQTRANS T
 
 LEFT JOIN AXMANAGEMENT.DBO.REX_INVENT_DIM_V V 
 
-    ON V.INVENT_DIM_ID          	= T.COVINVENTDIMID
-    AND V.DATA_AREA_ID          	= T.DATAAREAID
+    ON V.INVENT_DIM_ID          	    = T.COVINVENTDIMID
+    AND V.DATA_AREA_ID          	    = T.DATAAREAID
     AND V.[PARTITION]           		= T.[PARTITION]
 
 LEFT JOIN MICROSOFTDYNAMICSAX.DBO.REQPLANVERSION T2
 
     ON T2.RECID                 		= T.PLANVERSION
-    AND T2.REQPLANDATAAREAID    	= T.DATAAREAID
-    AND T2.[PARTITION]          	= T.[PARTITION]
+    AND T2.REQPLANDATAAREAID    	    = T.DATAAREAID
+    AND T2.[PARTITION]          	    = T.[PARTITION]
 
 LEFT JOIN MICROSOFTDYNAMICSAX.DBO.INVENTTRANSORIGIN T3 
 
-    ON T3.RECID         = T.INVENTTRANSORIGIN
-    AND T3.DATAAREAID   = T.DATAAREAID
-    AND T3.[PARTITION]  = T.[PARTITION]
+    ON T3.RECID                         = T.INVENTTRANSORIGIN
+    AND T3.DATAAREAID                   = T.DATAAREAID
+    AND T3.[PARTITION]                  = T.[PARTITION]
 
 LEFT JOIN MICROSOFTDYNAMICSAX.DBO.SALESLINE T4
 
-    ON T4.INVENTTRANSID         = T3.INVENTTRANSID
-    AND T4.DATAAREAID           = T3.DATAAREAID
-    AND T4.[PARTITION]          = T3.[PARTITION]
+    ON T4.INVENTTRANSID                 = T3.INVENTTRANSID
+    AND T4.DATAAREAID                   = T3.DATAAREAID
+    AND T4.[PARTITION]                  = T3.[PARTITION]
 
 WHERE 
 
@@ -353,24 +429,24 @@ FROM CTE_SUMMARY T
 LEFT JOIN SUM_SALES_LINE T2 
 
     ON T2.ITEMID                    			= T.ITEMID
-    AND T2.CONFIG_ID                		= T.CONFIG_ID
-    AND T2.INVENT_STYLE_ID          		= T.INVENT_STYLE_ID
-    AND T2.DATAAREAID               		= T.DATAAREAID
+    AND T2.CONFIG_ID                		    = T.CONFIG_ID
+    AND T2.INVENT_STYLE_ID          		    = T.INVENT_STYLE_ID
+    AND T2.DATAAREAID               		    = T.DATAAREAID
     AND T2.SALESID                  			= T.AXPSALESID
-    AND T2.[PARTITION]              		= T.[PARTITION]
-    AND T2.INVENT_LOCATION_ID       		= T.INVENT_LOCATION_ID
+    AND T2.[PARTITION]              		    = T.[PARTITION]
+    AND T2.INVENT_LOCATION_ID       		    = T.INVENT_LOCATION_ID
 
 LEFT JOIN NET_REQ NR 
 
     ON NR.ITEMID                    			= T.ITEMID
-    AND NR.CONFIG_ID                		= T.CONFIG_ID
-    AND NR.INVENT_STYLE_ID          		= T.INVENT_STYLE_ID
-    AND NR.INVENT_LOCATION_ID       		= T.INVENT_LOCATION_ID
-    AND NR.REFID                    		= T.AXPSALESID
-    AND NR.ACTIVITYNUMBER           		= T.AXPACTIVITYNUMBER
-    AND NR.[PARTITION]              		= T.[PARTITION]
-    AND NR.DATAAREAID               		= T.DATAAREAID
-    AND ABS(NR.QTY)                 		= T.QTY
+    AND NR.CONFIG_ID                		    = T.CONFIG_ID
+    AND NR.INVENT_STYLE_ID          		    = T.INVENT_STYLE_ID
+    AND NR.INVENT_LOCATION_ID       		    = T.INVENT_LOCATION_ID
+    AND NR.REFID                    		    = T.AXPSALESID
+    AND NR.ACTIVITYNUMBER           		    = T.AXPACTIVITYNUMBER
+    AND NR.[PARTITION]              		    = T.[PARTITION]
+    AND NR.DATAAREAID               		    = T.DATAAREAID
+    AND ABS(NR.QTY)                 		    = T.QTY
 
 /*
 OUTER APPLY
@@ -404,7 +480,7 @@ FROM MICROSOFTDYNAMICSAX.DBO.REQTRANSCOV C
 WHERE 
 
     1=1
-    AND C.ISSUERECID          = NR.RECID
+    AND C.ISSUERECID            = NR.RECID
     AND C.DATAAREAID            = T.DATAAREAID
     AND C.[PARTITION]           = T.[PARTITION]
 
